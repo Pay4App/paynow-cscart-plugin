@@ -128,18 +128,18 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
 } else {
     
-    $pay4app_url = 'https://pay4app.com/checkout.php';
+    $paynow_url = 'https://www.paynow.co.zw/interface/initiatetransaction';
 
-    $pay4app_merchantid = $processor_data['processor_params']['merchantid'];
-    $pay4app_apisecret  = $processor_data['processor_params']['apisecret'];
+    $paynow_integrationid = $processor_data['processor_params']['integrationid'];
+    $paynow_integrationkey  = $processor_data['processor_params']['integrationkey'];
 
     //Order Total    
-    $pay4app_total = fn_format_price($order_info['total']);
+    $paynow_total = fn_format_price($order_info['total']);
 
-    $pay4app_order_id = ($order_info['repaid']) ? ($order_id . '_' . $order_info['repaid']) : $order_id;
+    $paynow_reference = ($order_info['repaid']) ? ($order_id . '_' . $order_info['repaid']) : $order_id;
 
-    $return_url = fn_url("payment_notification.return?payment=pay4app&order_id=".$pay4app_order_id, AREA, 'current');
-    $callback_url = fn_url("payment_notification.callback?payment=pay4app&order_id=".$pay4app_order_id, AREA, 'current');
+    $return_url = fn_url("payment_notification.return?payment=paynow&order_id=".$paynow_reference, AREA, 'current');
+    $result_url = fn_url("payment_notification.callback?payment=paynow&order_id=".$paynow_reference, AREA, 'current');
 
     $str = $pay4app_merchantid.$pay4app_order_id.$pay4app_total.$pay4app_apisecret;
     $signature = hash('sha256', $str);
@@ -152,6 +152,26 @@ if (defined('PAYMENT_NOTIFICATION')) {
         'merchantid'        => $pay4app_merchantid,
         'signature'         => $signature
     );
+    
+    //prepare vPayments request
+    $parameters = array (
+	'id' 		=> $paynow_integrationid,
+	'reference' 	=> $paynow_reference,
+	'amount' 	=> $paynow_total,
+	//'additionalinfo' => '',
+	'returnurl' => $return_url, //@todo
+	'resulturl' => $result_url,
+	'authemail' => $this->mCustomerInfo['email'], //@todo
+	'status'	=> 'Message',
+	'hash'		=> ''
+);
+
+foreach ($parameters as $key => $value) {
+	if($key == 'hash')	continue;
+	$parameters['hash'] .= $value;
+}
+$parameters['hash'] .= $this->PayNowIntegrationKey;
+$parameters['hash'] = strtoupper(hash('sha512', $parameters['hash']));
 
     
     $res = fn_change_order_status($pay4app_order_id, "O"); //so that it's visible

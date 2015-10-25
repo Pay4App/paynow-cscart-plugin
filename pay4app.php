@@ -129,54 +129,93 @@ if (defined('PAYMENT_NOTIFICATION')) {
 } else {
     
     $paynow_url = 'https://www.paynow.co.zw/interface/initiatetransaction';
-
     $paynow_integrationid = $processor_data['processor_params']['integrationid'];
     $paynow_integrationkey  = $processor_data['processor_params']['integrationkey'];
-
     //Order Total    
     $paynow_total = fn_format_price($order_info['total']);
-
     $paynow_reference = ($order_info['repaid']) ? ($order_id . '_' . $order_info['repaid']) : $order_id;
-
     $return_url = fn_url("payment_notification.return?payment=paynow&order_id=".$paynow_reference, AREA, 'current');
     $result_url = fn_url("payment_notification.callback?payment=paynow&order_id=".$paynow_reference, AREA, 'current');
 
-    $str = $pay4app_merchantid.$pay4app_order_id.$pay4app_total.$pay4app_apisecret;
-    $signature = hash('sha256', $str);
-
-    $post_data = array(
-        'orderid'           => $pay4app_order_id,
-        'amount'            => $pay4app_total,
-        'redirect'          => $return_url,
-        'transferpending'   => $return_url,
-        'merchantid'        => $pay4app_merchantid,
-        'signature'         => $signature
-    );
-    
-    //prepare vPayments request
+    //prepare PayNow request
     $parameters = array (
-	'id' 		=> $paynow_integrationid,
-	'reference' 	=> $paynow_reference,
-	'amount' 	=> $paynow_total,
-	//'additionalinfo' => '',
-	'returnurl' => $return_url, //@todo
-	'resulturl' => $result_url,
-	'authemail' => $this->mCustomerInfo['email'], //@todo
-	'status'	=> 'Message',
-	'hash'		=> ''
-);
+		'id' 		=> $paynow_integrationid,
+		'reference' => $paynow_reference,
+		'amount' 	=> $paynow_total,
+		//'additionalinfo' => '',
+		'returnurl' => $return_url, //@todo
+		'resulturl' => $result_url,
+		'authemail' => '',//@todo
+		'status'	=> 'Message',
+		'hash'		=> ''
+	);
 
-foreach ($parameters as $key => $value) {
-	if($key == 'hash')	continue;
-	$parameters['hash'] .= $value;
-}
-$parameters['hash'] .= $this->PayNowIntegrationKey;
-$parameters['hash'] = strtoupper(hash('sha512', $parameters['hash']));
+	foreach ($parameters as $key => $value) {
+		if($key == 'hash')	continue;
+		$parameters['hash'] .= $value;
+	}
+	$parameters['hash'] .= $paynow_integrationkey;
+	$parameters['hash'] = strtoupper(hash('sha512', $parameters['hash']));
+	
+	$extra = array(
+        'headers' => array(
+            'Connection: close'
+        ),
+    );
+    $response = Http::post($post_url, $parameters, $extra);
+    if (empty($response))
+    {
+    	$error_text = 'We could not connect to PayNow. Please retry, or contact us if the problem persists';
+        fn_set_notification('E', 'Could not connect to PayNow', $error_text);
+        fn_order_placement_routines('checkout.cart');
+        exit;
+    }
+    	
+    parse_str($response, $proper_response);
 
+	if (!array_key_exists('status', $proper_response)){
+		$error_text = 'There was a challenge initiating your checkout with PayNow. '.
+			'Please retry, or contact us if the problem persists';
+        fn_set_notification('E', 'Unexpected response from PayNow', $error_text);
+        fn_order_placement_routines('checkout.cart');
+        exit;
+	}
+
+	if ($proper_response['status'] == 'ok'){
+		if (!(
+			array_key_exists('browserurl', $proper_response) AND
+			array_key_exists('pollurl', $proper_response) AND
+			array_key_exists('hash', $proper_response) ))
+		{
+			$error_text = 'There was a challenge initiating your checkout with PayNow. '.
+				'Please retry, or contact us if the problem persists';
+        	fn_set_notification('E', 'Unexpected response from PayNow', $error_text);
+        	fn_order_placement_routines('checkout.cart');
+        	exit;
+		}
+		 	
+		if(!verifyPayNowHash($proper_response)){
+		 	$error_text = 'There was a challenge initiating your checkout with PayNow. '.
+				'Please retry, or contact us if the problem persists';
+        	fn_set_notification('E', 'Unexpected response from PayNow', $error_text);
+        	fn_order_placement_routines('checkout.cart');
+        	exit;
+		 }
+		 $paynow_browser_url = $proper_response['browserurl'];
+	}
+		
+	if ($proper_response['status'] == "error"){
+		$error_text = 'There was an error while initiating your checkout with PayNow. '.
+			'We advise you contact us. Process failed with error: '.@$proper_response['error'];
+    	fn_set_notification('E', 'PayNow Error', $error_text);
+    	fn_order_placement_routines('checkout.cart');
+    	exit;
+		//@todo email admin the response body
+	}
     
-    $res = fn_change_order_status($pay4app_order_id, "O"); //so that it's visible
+    $res = fn_change_order_status($paynow_order_id, "O"); //so that it's visible
     fn_clear_cart($_SESSION['cart'], false, true);         //clear the cart
-    fn_create_payment_form($pay4app_url, $post_data, 'Pay4App');
+    fn_create_payment_form($paynow_browser_url, $post_data, 'PayNow');
     
 }
 exit;

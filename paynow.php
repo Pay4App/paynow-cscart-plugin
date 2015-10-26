@@ -131,6 +131,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
 
     } elseif ($mode == 'return') {
     	//set notification to not confuse customer
+    	fn_set_notification('N', 'Thank you for your payment', 'We will upate you about your order soon');
     	fn_order_placement_routines('checkout_redirect');
     }
     

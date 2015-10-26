@@ -1,8 +1,7 @@
 PayNow CSCart Plugin
 ============
 
-Installing the plugin
-====================
+##Installing the plugin
 Maybe we can apologize on their behalf, but CSCart does not have a straight forward install process as Wordpress say would give you.
 Credit to //victorkd2@yahoo.com
 * Go to your database management and find the table 'payment' processors
@@ -17,5 +16,14 @@ Credit to //victorkd2@yahoo.com
 * Browse to your cscart installation folder. Add the paynow.php file to the folder path app/payments/paynow.php
 * Also add the paynow.tpl file to path:
         ```design/backend/templates/views/payments/components/cc_processors/paynow.tpl```
-* In your CSCart admin, go to the 'Administration'->'Payments' menu and pick PayNow from the list.
-* Enter your merchant details as they are provided you in your PayNow account
+
+## Configuring the plugin
+* In your CSCart admin, go to the 'Administration'->'Payment methods' menu
+* Click the '+' icon to add a new payment method
+* In the 'General' tab on the dialog that shows enter a name such as PayNow
+* For *Processor*, pick PayNow from the *Checkouts* list
+* Click the *Configure* header and enter your merchant details as they are provided you in your PayNow account
+* Fill in all other fields on either headers as fits you
+* Click *Create*
+
+

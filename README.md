@@ -12,7 +12,7 @@ Credit to //victorkd2@yahoo.com
 * ```paynow.php``` in processor_script
 * ```views/orders/components/payments/cc_outside.tpl``` in 'processor template' (without the quotes)
 * ```paynow.tpl``` in the admin_template field
-* callback must be ```N``` and type ```C``` (both without the quotes)
+* callback must be ```N``` and type ```P``` (both without the quotes)
 * Browse to your cscart installation folder. Add the paynow.php file to the folder path app/payments/paynow.php
 * Also add the paynow.tpl file to path:
         ```design/backend/templates/views/payments/components/cc_processors/paynow.tpl```

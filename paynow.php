@@ -1,3 +1,4 @@
+ 
 <?php
 /***************************************************************************
 *                                                                          *
@@ -35,14 +36,13 @@ use Tygh\Registry;
 /**
  * @param $payload Checks if the 'hash' in payload is what we expect
  */
-function verifyPayNowHash($payload)
+function verifyPayNowHash($payload, $processor_data)
 {
 	$hashString = '';
 	foreach ($payload as $key => $value) {
 		if($key == 'hash') continue;
 		$hashString .= $value;
 	}
-	$hashString = '';
 	$hashString .= $processor_data['processor_params']['integrationkey'];
 	$hashString = strtoupper(hash('sha512', $hashString));
 	return ($hashString === $payload['hash']);
@@ -62,7 +62,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
             $paynow_response = array();
 
             if ( !$order_info = fn_get_order_info($_REQUEST['order']) ){
-                die( json_encode( array( 'status'=>0, 'message'=>'Order not found' ) ) );
+                die('Order not found');
                 exit();
             }
 
@@ -81,9 +81,10 @@ if (defined('PAYMENT_NOTIFICATION')) {
 				isset($_POST['pollurl']) ||
 				isset($_POST['status']) ||
 				isset($_POST['hash'])
-			)) return;
+			)) die('Incomplete request');
 	
-			if (!verifyPayNowHash($_POST)) return;
+			if (!verifyPayNowHash($_POST, $processor_data)) die('Invalid hash');
+			}
 	
 			//Verify again with PayNow
 			$pollURL = ''; //@todo Retrieve saved polled URL
@@ -95,10 +96,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
 		        ),
 		    );
 		    $response = Http::get($_POST['pollurl'], array(), $extra);
-		    if (empty($response))
-		    {
-		    	return;
-		    }
+		    if (empty($response)) die('Failed to poll'); //@todo maybe email admin
 		    parse_str($response, $proper_response);
 		    
 		    if(!(
@@ -111,19 +109,19 @@ if (defined('PAYMENT_NOTIFICATION')) {
 			)) //response missing expected fields
 				//@todo email request to admin so that they check in PayNow admin since their servers won't repeat this
 				return;
-			if (!verifyPayNowHash($proper_response)) return;
-			if (!$proper_response['status'] == 'ok') return;
+			if (!verifyPayNowHash($proper_response, $processor_data)) die('Invalid hash (poll)');
+			if (!$proper_response['status'] == 'Paid') die('Status not Paid. Ineffectual');
             
             // End PayNow checks
             if ( fn_format_price($_REQUEST['amount']) != fn_format_price($order_info['total']) ) {
                 $paynow_response['order_status']  	= "Y";
                 $paynow_response['reason_text']    	= 'PayNow payment and expected order amount mismatch';
-                $paynow_response['checkout_id']    	= $_REQUEST['checkout'];
+                $paynow_response['paynowreference']    	= $_REQUEST['paynowreference'];
             
             } else {
                 $paynow_response['order_status'] = $success_status;
                 $paynow_response['reason_text'] = 'Payment completed successfully';
-                $paynow_response['checkout_id'] = $_REQUEST['checkout'];
+                $paynow_response['paynowreference'] = $_REQUEST['paynowreference'];
             }
             
             fn_finish_payment($_REQUEST['order'], $paynow_response);
@@ -132,9 +130,8 @@ if (defined('PAYMENT_NOTIFICATION')) {
         exit;
 
     } elseif ($mode == 'return') {
-        
-        fn_order_placement_routines('route', $_REQUEST['order']);
-
+    	//set notification to not confuse customer
+    	fn_order_placement_routines('checkout_redirect');
     }
     
 
@@ -147,8 +144,8 @@ if (defined('PAYMENT_NOTIFICATION')) {
     //Order Total    
     $paynow_total = fn_format_price($order_info['total']);
     $paynow_reference = ($order_info['repaid']) ? ($order_id . '_' . $order_info['repaid']) : $order_id;
-    $return_url = fn_url("payment_notification.return?payment=paynow&order_id=".$paynow_reference, AREA, 'current');
-    $result_url = fn_url("payment_notification.callback?payment=paynow&order_id=".$paynow_reference, AREA, 'current');
+    $return_url = fn_url("payment_notification.return?payment=paynow&order=".$paynow_reference, AREA, 'current');
+    $result_url = fn_url("payment_notification.callback?payment=paynow&order=".$paynow_reference, AREA, 'current');
 
     //prepare PayNow request
     $parameters = array (
@@ -175,7 +172,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
             'Connection: close'
         ),
     );
-    $response = Http::post($post_url, $parameters, $extra);
+    $response = Http::post($paynow_url, $parameters, $extra);
     if (empty($response))
     {
     	$error_text = 'We could not connect to PayNow. Please retry, or contact us if the problem persists';
@@ -194,7 +191,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
         exit;
 	}
 
-	if ($proper_response['status'] == 'ok'){
+	if ($proper_response['status'] == 'Ok'){
 		if (!(
 			array_key_exists('browserurl', $proper_response) AND
 			array_key_exists('pollurl', $proper_response) AND
@@ -202,19 +199,25 @@ if (defined('PAYMENT_NOTIFICATION')) {
 		{
 			$error_text = 'There was a challenge initiating your checkout with PayNow. '.
 				'Please retry, or contact us if the problem persists';
-        	fn_set_notification('E', 'Unexpected response from PayNow', $error_text);
+        	fn_set_notification('E', 'PayNow response field validation failed', $error_text);
         	fn_order_placement_routines('checkout.cart');
         	exit;
 		}
 		 	
-		if(!verifyPayNowHash($proper_response)){
-		 	$error_text = 'There was a challenge initiating your checkout with PayNow. '.
+		if(!verifyPayNowHash($proper_response, $processor_data)){
+			$error_text = 'There was a challenge initiating your checkout with PayNow. '.
 				'Please retry, or contact us if the problem persists';
-        	fn_set_notification('E', 'Unexpected response from PayNow', $error_text);
-        	fn_order_placement_routines('checkout.cart');
+        	fn_set_notification('E', 'PayNow response hash validation fail', $error_text);
         	exit;
-		 }
-		 $paynow_browser_url = $proper_response['browserurl'];
+		}
+
+		$error_text = 'Poll URL: '.$proper_response['pollurl'];
+        fn_set_notification('E', 'PayNow tings', $error_text);
+
+		$paynow_browser_url = $proper_response['browserurl'];
+		$res = fn_change_order_status($paynow_order_id, "O"); //so that it's visible
+	    fn_clear_cart($_SESSION['cart'], false, true);         //clear the cart
+	    fn_create_payment_form($paynow_browser_url, $post_data, 'PayNow');
 	}
 		
 	if ($proper_response['status'] == "error"){
@@ -225,10 +228,12 @@ if (defined('PAYMENT_NOTIFICATION')) {
     	exit;
 		//@todo email admin the response body
 	}
-    
-    $res = fn_change_order_status($paynow_order_id, "O"); //so that it's visible
-    fn_clear_cart($_SESSION['cart'], false, true);         //clear the cart
-    fn_create_payment_form($paynow_browser_url, $post_data, 'PayNow');
+
+	$error_text = 'There was a challenge initiating your checkout with PayNow. '.
+		'Please retry, or contact us if the problem persists';
+	fn_set_notification('E', 'Unknown response status from PayNow', $error_text);
+	fn_order_placement_routines('checkout.cart');
+	exit;
     
 }
 exit;

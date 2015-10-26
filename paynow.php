@@ -10,9 +10,6 @@ Installing the plugin
 Maybe we can apologize on their behalf, but CSCart does not have a straight forward install process as Wordpress say would give you.
 
 
-Credit to //victorkd2@yahoo.com
-
-
 * Go to your database management and find the table 'payment' processors
 * Note the processor_id of the last row in that table
 * Add a new row to the database. CSCart say 3rd party gateways must have their IDs  starting at 1000 and upward.
@@ -38,7 +35,7 @@ use Tygh\Registry;
 /**
  * @param $payload Checks if the 'hash' in payload is what we expect
  */
-public function verifyPayNowHash($payload)
+function verifyPayNowHash($payload)
 {
 	$hashString = '';
 	foreach ($payload as $key => $value) {
@@ -104,7 +101,6 @@ if (defined('PAYMENT_NOTIFICATION')) {
 		    }
 		    parse_str($response, $proper_response);
 		    
-		    --
 		    if(!(
 				array_key_exists('reference', $proper_response) &
 				array_key_exists('amount', $proper_response) &
@@ -112,7 +108,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
 				array_key_exists('pollurl', $proper_response) &
 				array_key_exists('status', $proper_response) &
 				array_key_exists('hash', $proper_response)
-			)) {//response missing expected fields
+			)) //response missing expected fields
 				//@todo email request to admin so that they check in PayNow admin since their servers won't repeat this
 				return;
 			if (!verifyPayNowHash($proper_response)) return;

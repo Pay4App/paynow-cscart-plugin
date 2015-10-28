@@ -207,9 +207,6 @@ if (defined('PAYMENT_NOTIFICATION')) {
         	exit;
 		}
 
-		$error_text = 'Poll URL: '.$proper_response['pollurl'];
-        fn_set_notification('E', 'PayNow tings', $error_text);
-
 		$paynow_browser_url = $proper_response['browserurl'];
 		$res = fn_change_order_status($paynow_order_id, "O"); //so that it's visible
 	    fn_clear_cart($_SESSION['cart'], false, true);         //clear the cart

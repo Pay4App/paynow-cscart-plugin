@@ -3,7 +3,7 @@ PayNow CSCart Plugin
 
 ##Installing the plugin
 Maybe we can apologize on their behalf, but CSCart does not have a straight forward install process as Wordpress say would give you.
-Credit to //victorkd2@yahoo.com
+h/t to Victor Kadungure for the testing sites & accounts
 * Go to your database management and find the table 'payment' processors
 * Note the processor_id of the last row in that table
 * Add a new row to the database. CSCart say 3rd party gateways must have their IDs  starting at 1000 and upward.

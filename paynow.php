@@ -53,8 +53,12 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
 // Return from PayNow's website
 if (defined('PAYMENT_NOTIFICATION')) {
 
-    
-    if ($mode == 'callback' && !empty($_REQUEST['order'])) {
+	if ($mode == 'return') {
+    	//set notification to not confuse customer
+    	fn_set_notification('N', 'Thank you for your payment', 'We will upate you about your order soon');
+    	fn_order_placement_routines('checkout_redirect');
+
+    } else if ($mode == 'callback' && !empty($_REQUEST['order'])) {
 
         if (fn_check_payment_script('paynow.php', $_REQUEST['order'], $processor_data)) {
 
@@ -84,7 +88,6 @@ if (defined('PAYMENT_NOTIFICATION')) {
 			)) die('Incomplete request');
 	
 			if (!verifyPayNowHash($_POST, $processor_data)) die('Invalid hash');
-			}
 	
 			//Verify again with PayNow
 			$pollURL = ''; //@todo Retrieve saved polled URL
@@ -127,15 +130,7 @@ if (defined('PAYMENT_NOTIFICATION')) {
             fn_finish_payment($_REQUEST['order'], $paynow_response);
             
         }
-        exit;
-
-    } elseif ($mode == 'return') {
-    	//set notification to not confuse customer
-    	fn_set_notification('N', 'Thank you for your payment', 'We will upate you about your order soon');
-    	fn_order_placement_routines('checkout_redirect');
     }
-    
-
 
 } else {
     
